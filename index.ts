@@ -69,6 +69,7 @@ const runner = async (payload: Payload) => {
 }
 
 const consumerKfk = async () => {
+    console.log('Starting....')
     await consumerKafka(runner)
 }
  const app = express()
@@ -78,10 +79,10 @@ app.get('/', (req, res) =>{
     res.json({status: 'ok', feitos, refeitos, agent: `${process.env.AGENT_NAME}`})
 })
 
-
+consumerKfk()
 // Start Express Server
 app.listen(PORT, () => {
-    consumerKfk()
+    
     console.log(`Express server is listening on ${PORT}`);
 });
 
