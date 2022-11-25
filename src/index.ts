@@ -1,12 +1,10 @@
 //import express from 'express'
 
-import { getHistorico } from "./src/get_historico"
-import { getParticipacao } from "./src/get_participacao"
-import { getQuitada } from "./src/get_quitada"
-import { getToken } from "./src/get_token"
-import { encript } from "./src/pgp"
-import { init as consumerKafka } from "./src/kafka/consumer"
-import { sleep } from "./src/helpers/sleep"
+import { getHistorico } from "./get_historico"
+import { getParticipacao } from "./get_participacao"
+import { getQuitada } from "./get_quitada"
+import { getToken } from "./get_token"
+import { encript } from "./pgp"
 import express from 'express'
 const PORT: number = Number(process.env.PORT) || 3088
 
@@ -29,16 +27,16 @@ const runner = async (payload: Payload) => {
 
         console.log('Processando: ', payload)
         const crypted = await encript(payload.chave)
-        await sleep(0.5)
+        
         const dados = await getToken({chave: payload.chave, crypted})
-        await sleep(0.5)
+        
 
         if(payload.status === 1){
             refeitos++
             const quitada = await getQuitada({...dados, partBody: payload.body})
-            await sleep(0.5)
+            
             const participacao = await getParticipacao({...dados, ...quitada})
-            await sleep(0.5)
+            
             return ({...payload, ...participacao})
         }
 
@@ -47,40 +45,47 @@ const runner = async (payload: Payload) => {
             refeitos++
             console.log('Only participacao')
             const participacao = await getParticipacao({...dados, partBody: payload.body})
-            await sleep(0.5)
+            
             return ({...payload, ...participacao})
         }
 
         if(!payload.status || payload.status === 0){
             if(payload.status) refeitos++;
             const media = await getHistorico(dados)
-            await sleep(0.5)
+            
             const quitada = await getQuitada(dados)
-            await sleep(0.5)
+            
             const participacao = await getParticipacao({...dados, ...quitada})
-            await sleep(0.5)
+            
             return ({...payload, media, ...participacao})
         }
     }catch(err){
-        console.log(err)
         return ({...payload, status: 0 })
     }
         
 }
 
-const consumerKfk = async () => {
-    console.log('Starting....')
-    await consumerKafka(runner)
-}
- const app = express()
+
+const app = express()
 
 
-app.get('/', (req, res) =>{
+app.get('/', (_: any, res: any) =>{
     res.json({status: 'ok', feitos, refeitos, agent: `${process.env.AGENT_NAME}`})
 })
 
-consumerKfk()
-// Start Express Server
+
+app.get('/api/:instalacao/:documento',async  (req: any, res: any) =>{
+    const payload = {
+        times: 0,
+        from: `${process.env.AGENT_NAME || 'AGENT_NODE_001'}`,
+        chave: `${req.params.instalacao}|${req.params.documento}`, 
+    }
+    const calculado = await runner(payload)
+    res.json(calculado)
+})
+
+
+
 app.listen(PORT, () => {
     
     console.log(`Express server is listening on ${PORT}`);
